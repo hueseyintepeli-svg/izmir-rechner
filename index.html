@@ -660,7 +660,7 @@ const PRESETS = {
 };
 
 /* ── State ───────────────────────────────────────────────────────────── */
-let rate = 39.0;
+let rate = 53.0;
 
 /* ── Formatters ──────────────────────────────────────────────────────── */
 const fmtE = v => v.toLocaleString('de-DE', {minimumFractionDigits:0, maximumFractionDigits:0}) + ' €';
@@ -873,7 +873,7 @@ async function fetchRate() {
   try {
     const ctrl = new AbortController();
     const tid  = setTimeout(() => ctrl.abort(), 7000);
-    const res  = await fetch('https://api.frankfurter.app/latest?from=EUR&to=TRY', { signal: ctrl.signal });
+    const res  = await fetch('https://api.frankfurter.dev/v1/latest?from=EUR&to=TRY', { signal: ctrl.signal });
     clearTimeout(tid);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
@@ -887,12 +887,12 @@ async function fetchRate() {
     pill.textContent = 'Live-Kurs';
     document.getElementById('rateInput').value = r.toFixed(2);
   } catch (e) {
-    rate = 39.0;
-    display.textContent = '1 € = ₺ 39,00 (Fallback)';
+    rate = 53.0;
+    display.textContent = '1 € = ₺ 53,00 (Fallback)';
     meta.textContent    = 'Kurs nicht abrufbar — bitte Internetverbindung prüfen oder manuell eingeben';
     pill.className = 'rate-pill error';
     pill.textContent = 'Offline / Fehler';
-    document.getElementById('rateInput').value = '39.00';
+    document.getElementById('rateInput').value = '53.00';
   }
   updateAllTry();
   recalc();
@@ -925,3 +925,5 @@ fetchRate();
 </script>
 </body>
 </html>
+
+
