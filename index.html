@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Izmir Lebenshaltungskosten-Rechner</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d1117;
+      --surf1:     #161b27;
+      --surf2:     #1e2538;
+      --border:    #2a3050;
+      --teal:      #00cba4;
+      --teal-bg:   rgba(0,203,164,.12);
+      --gold:      #e8b84b;
+      --gold-bg:   rgba(232,184,75,.12);
+      --red:       #ff4757;
+      --red-bg:    rgba(255,71,87,.12);
+      --orange:    #ffa502;
+      --orange-bg: rgba(255,165,2,.12);
+      --green:     #26de81;
+      --green-bg:  rgba(38,222,129,.12);
+      --text:      #e2e8f0;
+      --muted:     #7b8599;
+      --r:         10px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    .page {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 0 1.25rem 4rem;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 2.5rem 0 1.5rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1.75rem;
+    }
+    header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--teal);
+      letter-spacing: -.4px;
+    }
+    header p {
+      color: var(--muted);
+      font-size: .875rem;
+      margin-top: .3rem;
+    }
+
+    /* ── Exchange rate bar ── */
+    .rate-bar {
+      background: var(--surf1);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.75rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .rate-main { display: flex; flex-direction: column; gap: .1rem; flex: 1; min-width: 180px; }
+    .rate-value { font-size: 1.35rem; font-weight: 700; color: var(--gold); }
+    .rate-meta  { font-size: .78rem; color: var(--muted); }
+
+    .rate-pill {
+      font-size: .75rem;
+      font-weight: 600;
+      padding: .2rem .7rem;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+    .rate-pill.live    { background: var(--green-bg);  color: var(--green);  }
+    .rate-pill.error   { background: var(--red-bg);    color: var(--red);    }
+    .rate-pill.loading { background: var(--teal-bg);   color: var(--teal);   }
+
+    .rate-manual { display: flex; align-items: center; gap: .5rem; }
+    .rate-manual label { font-size: .82rem; color: var(--muted); white-space: nowrap; }
+    .rate-manual input {
+      width: 95px;
+      background: var(--surf2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: .9rem;
+      padding: .28rem .5rem;
+      text-align: right;
+    }
+    .rate-manual input:focus { outline: 1px solid var(--teal); border-color: var(--teal); }
+    .rate-manual span { font-size: .82rem; color: var(--muted); }
+
+    /* ── Section titles ── */
+    section { margin-bottom: 2.25rem; }
+    .section-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 1rem;
+      padding-bottom: .5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: baseline;
+      gap: .5rem;
+    }
+    .section-title small { font-size: .8rem; color: var(--muted); font-weight: 400; }
+
+    /* ── Cost grid ── */
+    .costs-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .75rem;
+    }
+    @media (max-width: 640px) { .costs-grid { grid-template-columns: 1fr; } }
+
+    .cost-card {
+      background: var(--surf1);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: .9rem 1rem .8rem;
+      transition: border-color .15s;
+    }
+    .cost-card:focus-within { border-color: var(--teal); }
+    .cost-card.warn-card { border-color: var(--orange); }
+
+    .cost-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: .55rem;
+    }
+    .cost-label { font-size: .85rem; color: var(--text); font-weight: 500; }
+
+    /* Tooltip button */
+    .tip-btn {
+      position: relative;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      width: 17px;
+      height: 17px;
+      color: var(--muted);
+      font-size: .68rem;
+      cursor: default;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .tip-btn::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: calc(100% + 7px);
+      right: 0;
+      background: #232840;
+      color: var(--text);
+      font-size: .77rem;
+      line-height: 1.45;
+      white-space: normal;
+      width: 230px;
+      padding: .45rem .65rem;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .15s;
+      z-index: 20;
+    }
+    .tip-btn:hover::after { opacity: 1; }
+
+    .input-row {
+      display: flex;
+      align-items: center;
+      gap: .45rem;
+      margin-bottom: .35rem;
+    }
+    input[type="range"] {
+      flex: 1;
+      accent-color: var(--teal);
+      cursor: pointer;
+      height: 3px;
+    }
+    .num-inp {
+      width: 78px;
+      background: var(--surf2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: .95rem;
+      font-weight: 600;
+      padding: .28rem .4rem;
+      text-align: right;
+    }
+    .num-inp:focus { outline: 1px solid var(--teal); border-color: var(--teal); }
+    .eur-sym { font-size: .82rem; color: var(--muted); }
+
+    .try-line {
+      font-size: .77rem;
+      color: var(--gold);
+      opacity: .85;
+    }
+    .warn-hint {
+      font-size: .74rem;
+      color: var(--orange);
+      margin-top: .15rem;
+      display: none;
+    }
+    .cost-card.warn-card .warn-hint { display: block; }
+
+    /* ── Results ── */
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+    @media (max-width: 560px) { .results-grid { grid-template-columns: 1fr; } }
+
+    .res-card {
+      background: var(--surf1);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 1.15rem 1.2rem;
+      text-align: center;
+    }
+    .res-card.hi-teal { border-color: var(--teal); background: var(--teal-bg); }
+    .res-card.hi-gold { border-color: var(--gold); background: var(--gold-bg); }
+
+    .res-lbl { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: .3rem; }
+    .res-eur { font-size: 2rem; font-weight: 700; line-height: 1.1; color: var(--teal); }
+    .res-card.hi-gold .res-eur { color: var(--gold); }
+    .res-card:not(.hi-teal):not(.hi-gold) .res-eur { color: var(--text); }
+    .res-try { font-size: .82rem; color: var(--muted); margin-top: .2rem; }
+
+    /* ── Scenarios ── */
+    .scen-btns {
+      display: flex;
+      gap: .85rem;
+      margin-bottom: 1.1rem;
+      flex-wrap: wrap;
+    }
+    .scen-btn {
+      flex: 1;
+      min-width: 200px;
+      padding: .7rem 1.1rem;
+      border-radius: var(--r);
+      border: 1px solid var(--border);
+      background: var(--surf1);
+      color: var(--text);
+      font-size: .92rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all .18s;
+      text-align: left;
+    }
+    .scen-btn small { display: block; font-size: .75rem; color: var(--muted); margin-top: .1rem; }
+    .scen-btn:hover,
+    .scen-btn.act-teal { border-color: var(--teal); background: var(--teal-bg); color: var(--teal); }
+    .scen-btn.act-teal small { color: var(--teal); opacity: .7; }
+    .scen-btn:hover.gehoben-btn,
+    .scen-btn.act-gold { border-color: var(--gold); background: var(--gold-bg); color: var(--gold); }
+    .scen-btn.act-gold small { color: var(--gold); opacity: .7; }
+
+    /* Reset button */
+    .reset-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: .8rem;
+      padding: .35rem .75rem;
+      cursor: pointer;
+      align-self: flex-start;
+      margin-top: .2rem;
+    }
+    .reset-btn:hover { border-color: var(--teal); color: var(--teal); }
+
+    .scen-compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 560px) { .scen-compare { grid-template-columns: 1fr; } }
+
+    .scen-card {
+      background: var(--surf1);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 1.1rem 1.2rem;
+    }
+    .scen-card.teal-card { border-color: var(--teal); }
+    .scen-card.gold-card  { border-color: var(--gold); }
+
+    .scen-title {
+      font-weight: 600;
+      margin-bottom: .75rem;
+      font-size: .95rem;
+    }
+    .teal-card .scen-title { color: var(--teal); }
+    .gold-card  .scen-title { color: var(--gold); }
+
+    .scen-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: .8rem;
+      padding: .22rem 0;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .scen-row:last-of-type { border-bottom: none; }
+    .scen-row .v { color: var(--text); font-weight: 500; }
+    .scen-sum {
+      display: flex;
+      justify-content: space-between;
+      font-weight: 700;
+      font-size: .95rem;
+      padding: .6rem 0 0;
+      margin-top: .3rem;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── Buffer analysis ── */
+    .buf-form {
+      background: var(--surf1);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 560px) { .buf-form { grid-template-columns: 1fr; } }
+
+    .buf-field label {
+      display: block;
+      font-size: .8rem;
+      color: var(--muted);
+      margin-bottom: .3rem;
+    }
+    .buf-field label strong { color: var(--text); }
+    .buf-field input {
+      width: 100%;
+      background: var(--surf2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 1rem;
+      font-weight: 600;
+      padding: .42rem .7rem;
+    }
+    .buf-field input:focus { outline: 1px solid var(--teal); border-color: var(--teal); }
+    .buf-note { font-size: .75rem; color: var(--muted); margin-top: .25rem; }
+
+    /* Traffic light */
+    .traffic {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      padding: 1rem 1.2rem;
+      border-radius: var(--r);
+      border: 1px solid var(--border);
+      margin-bottom: 1rem;
+      background: var(--surf1);
+      transition: background .25s, border-color .25s;
+    }
+    .traffic.g  { background: var(--green-bg);  border-color: var(--green);  }
+    .traffic.y  { background: var(--gold-bg);   border-color: var(--gold);   }
+    .traffic.o  { background: var(--orange-bg); border-color: var(--orange); }
+    .traffic.r  { background: var(--red-bg);    border-color: var(--red);    }
+
+    .t-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: .2rem;
+      background: var(--border);
+    }
+    .traffic.g .t-dot  { background: var(--green);  }
+    .traffic.y .t-dot  { background: var(--gold);   }
+    .traffic.o .t-dot  { background: var(--orange); }
+    .traffic.r .t-dot  { background: var(--red);    }
+
+    .t-body { font-size: .88rem; line-height: 1.55; }
+    .t-title { font-weight: 600; margin-bottom: .2rem; }
+
+    /* Stat cells */
+    .buf-stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: .75rem;
+      margin-bottom: 1rem;
+    }
+    @media (max-width: 480px) { .buf-stats { grid-template-columns: 1fr; } }
+
+    .stat-cell {
+      background: var(--surf2);
+      border-radius: 8px;
+      padding: .8rem 1rem;
+    }
+    .s-lbl { font-size: .75rem; color: var(--muted); margin-bottom: .15rem; }
+    .s-val { font-size: 1.25rem; font-weight: 700; color: var(--text); }
+    .s-val.pos { color: var(--green); }
+    .s-val.neg { color: var(--red); }
+    .s-val.warn { color: var(--orange); }
+
+    /* Mavi Kart info */
+    .mavi-box {
+      background: var(--surf2);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--teal);
+      border-radius: var(--r);
+      padding: 1rem 1.2rem;
+    }
+    .mavi-box h4 { font-size: .88rem; color: var(--teal); margin-bottom: .65rem; }
+    .mavi-list { list-style: none; }
+    .mavi-list li {
+      display: flex;
+      gap: .55rem;
+      font-size: .8rem;
+      color: var(--muted);
+      padding: .22rem 0;
+      line-height: 1.45;
+    }
+    .mavi-list li .ic { flex-shrink: 0; width: 14px; }
+    .mavi-list li.ok   .ic { color: var(--green); }
+    .mavi-list li.info .ic { color: var(--teal); }
+    .mavi-list li.wrn  .ic { color: var(--orange); }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 1.5rem 0 .5rem;
+      font-size: .75rem;
+      color: var(--muted);
+      line-height: 1.75;
+    }
+    footer strong { color: var(--text); }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <h1>Izmir Lebenshaltungskosten-Rechner</h1>
+    <p>Mavi Kart &mdash; Einzelperson &mdash; Daten: Numbeo &amp; EZB Mai 2026 &mdash; Kosten in Euro (inflationssicher), TRY zur Orientierung</p>
+  </header>
+
+  <!-- Live Exchange Rate -->
+  <div class="rate-bar">
+    <div class="rate-main">
+      <div class="rate-value" id="rateDisplay">1 € = ₺ &mdash;</div>
+      <div class="rate-meta" id="rateMeta">Lade aktuellen Kurs von der EZB&hellip;</div>
+    </div>
+    <span class="rate-pill loading" id="ratePill">Lädt&hellip;</span>
+    <div class="rate-manual">
+      <label for="rateInput">Manuell:</label>
+      <input type="number" id="rateInput" step="0.01" min="1" placeholder="39.00" title="Wechselkurs manuell überschreiben">
+      <span>TRY / €</span>
+    </div>
+  </div>
+
+  <!-- Monthly Cost Inputs -->
+  <section>
+    <h2 class="section-title">
+      Monatliche Ausgaben
+      <small>Eingabe in Euro &mdash; TRY-Betrag wird live berechnet</small>
+    </h2>
+    <div class="costs-grid" id="costsGrid"></div>
+  </section>
+
+  <!-- Summary -->
+  <section>
+    <h2 class="section-title">Zusammenfassung</h2>
+    <div class="results-grid">
+      <div class="res-card hi-teal">
+        <div class="res-lbl">Monatlich</div>
+        <div class="res-eur" id="rMonEur">&mdash;</div>
+        <div class="res-try" id="rMonTry"></div>
+      </div>
+      <div class="res-card hi-gold">
+        <div class="res-lbl">J&auml;hrlich</div>
+        <div class="res-eur" id="rYrEur">&mdash;</div>
+        <div class="res-try" id="rYrTry"></div>
+      </div>
+      <div class="res-card">
+        <div class="res-lbl">Sicherheitsreserve (3 Mon.)</div>
+        <div class="res-eur" id="rResEur">&mdash;</div>
+        <div class="res-try" id="rResTry"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Scenarios -->
+  <section>
+    <h2 class="section-title">Szenarien-Vergleich</h2>
+    <div class="scen-btns">
+      <button class="scen-btn" id="btnMittel" onclick="applyPreset('mittel')">
+        Mittlere Lebensweise laden
+        <small>Solide Wohnung, Markt, gelegentlich Restaurant &mdash; ca. 1.350 €/Mon.</small>
+      </button>
+      <button class="scen-btn gehoben-btn" id="btnGehoben" onclick="applyPreset('gehoben')">
+        Gehobene Lebensweise laden
+        <small>Gute Wohnung, Restaurants, Privatarzt, Rente &mdash; ca. 2.140 €/Mon.</small>
+      </button>
+      <button class="reset-btn" onclick="applyPreset('standard')">Standardwerte</button>
+    </div>
+    <div class="scen-compare">
+      <div class="scen-card teal-card">
+        <div class="scen-title">Mittlere Lebensweise</div>
+        <div id="scenMittel"></div>
+      </div>
+      <div class="scen-card gold-card">
+        <div class="scen-title">Gehobene Lebensweise</div>
+        <div id="scenGehoben"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Financial Buffer Analysis -->
+  <section>
+    <h2 class="section-title">
+      Finanzpuffer-Analyse
+      <small>Ab wann ist der Umzug realistisch?</small>
+    </h2>
+
+    <div class="buf-form">
+      <div class="buf-field">
+        <label><strong>Monatliches Nettoeinkommen</strong></label>
+        <input type="number" id="income" placeholder="0" min="0">
+        <div class="buf-note">Remote-Arbeit, Rente, Freelance, Mieteinkünfte &hellip; in €</div>
+      </div>
+      <div class="buf-field">
+        <label><strong>Verf&uuml;gbare Ersparnisse</strong></label>
+        <input type="number" id="savings" placeholder="0" min="0">
+        <div class="buf-note">Frei verf&uuml;gbares Gesamtkapital in €</div>
+      </div>
+      <div class="buf-field">
+        <label><strong>Kaution</strong> (Depozito)</label>
+        <input type="number" id="deposit" placeholder="0" min="0">
+        <div class="buf-note" id="depositNote">&Uuml;blich: 2&ndash;3 Monatsmieten</div>
+      </div>
+      <div class="buf-field">
+        <label><strong>M&ouml;bel &amp; Erstausstattung</strong></label>
+        <input type="number" id="furniture" value="2000" min="0">
+        <div class="buf-note">G&uuml;nstig ~1.000 €, komfortabel ~3.000 €</div>
+      </div>
+    </div>
+
+    <!-- Traffic light -->
+    <div class="traffic" id="traffic">
+      <div class="t-dot"></div>
+      <div class="t-body">
+        <div class="t-title" id="tTitle">Einkommensdaten eingeben</div>
+        <div id="tDesc">Trage dein monatliches Nettoeinkommen und deine Ersparnisse ein, um die finanzielle Machbarkeit des Umzugs zu berechnen.</div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="buf-stats">
+      <div class="stat-cell">
+        <div class="s-lbl">Monatlicher &Uuml;berschuss / Defizit</div>
+        <div class="s-val" id="sBalance">&mdash;</div>
+      </div>
+      <div class="stat-cell">
+        <div class="s-lbl">Mindestbedarf (kostendeckend)</div>
+        <div class="s-val" id="sMinInc">&mdash;</div>
+      </div>
+      <div class="stat-cell">
+        <div class="s-lbl">Startkapital nach Umzugskosten</div>
+        <div class="s-val" id="sStart">&mdash;</div>
+      </div>
+      <div class="stat-cell">
+        <div class="s-lbl">Reichweite der Ersparnisse</div>
+        <div class="s-val" id="sRunway">&mdash;</div>
+      </div>
+    </div>
+
+    <!-- Mavi Kart Notes -->
+    <div class="mavi-box">
+      <h4>Mavi Kart &mdash; Wichtige Hinweise f&uuml;r Auswanderer</h4>
+      <ul class="mavi-list">
+        <li class="ok">
+          <span class="ic">&#10003;</span>
+          <span>Kein Aufenthaltstitel (&#304;kamet) und kein Visum n&ouml;tig &mdash; du hast das Recht, dauerhaft in der T&uuml;rkei zu leben und zu arbeiten.</span>
+        </li>
+        <li class="ok">
+          <span class="ic">&#10003;</span>
+          <span>Freiz&uuml;gigkeit: Jederzeit zwischen Deutschland und der T&uuml;rkei reisen, kein Antrag erforderlich.</span>
+        </li>
+        <li class="ok">
+          <span class="ic">&#10003;</span>
+          <span>Grundst&uuml;ckskauf und Erbrecht: Mavi Kart Inhaber haben dieselben Eigentumsrechte wie t&uuml;rkische Staatsb&uuml;rger.</span>
+        </li>
+        <li class="info">
+          <span class="ic">i</span>
+          <span>Krankenversicherung: Privatversicherung (50&ndash;80 €/Mon.) oder freiwillig in die SGK einzahlen (~165 €/Mon.) &mdash; beide Optionen stehen offen.</span>
+        </li>
+        <li class="info">
+          <span class="ic">i</span>
+          <span>Steuerpflicht: Nach Abmeldung in DE und Anmeldung in TR wechselt die Steuerpflicht in die T&uuml;rkei. Das Doppelbesteuerungsabkommen DE&ndash;TR verhindert doppelte Besteuerung.</span>
+        </li>
+        <li class="info">
+          <span class="ic">i</span>
+          <span>Freiwillige Rentenversicherung DE: Mindestbeitrag 2026 betr&auml;gt 112 €/Monat &mdash; sichert deine Rentenanwartschaft in Deutschland.</span>
+        </li>
+        <li class="wrn">
+          <span class="ic">!</span>
+          <span>Deutsches Bankkonto behalten: Nutze Wise oder Revolut f&uuml;r g&uuml;nstige &Uuml;berweisungen DE&rarr;TR (~3&ndash;5 € pro Transfer statt 10&ndash;15 € bei der Hausbank).</span>
+        </li>
+        <li class="wrn">
+          <span class="ic">!</span>
+          <span>Hygieneartikel &amp; Markenprodukte sind in der T&uuml;rkei teurer als in Deutschland &mdash; regelm&auml;&szlig;iger Import oder lokale Alternativen einplanen.</span>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    <strong>Datenquellen:</strong> Numbeo Izmir (Mai 2026) &bull; Frankfurter.app / Europ&auml;ische Zentralbank (Wechselkurs) &bull; ESHOT Izmir (ÖPNV-Tarife April 2026) &bull; Deutsche Rentenversicherung (freiwillige Beitr&auml;ge 2026) &bull; Wise &amp; Revolut (&Uuml;berweisungsgeb&uuml;hren)<br>
+    <strong>Hinweis:</strong> Alle Angaben ohne Gew&auml;hr. Preise, Wechselkurse und gesetzliche Regelungen &auml;ndern sich. Die Szenarien dienen der Orientierung &mdash; individuelle Kosten k&ouml;nnen abweichen. Dieser Rechner ersetzt keine steuerliche oder rechtliche Beratung.
+  </footer>
+
+</div><!-- /page -->
+
+<script>
+/* ── Cost field definitions (alle Werte in EUR) ─────────────────────── */
+const COSTS = [
+  { id:'miete',        label:'Miete',                             def:500,  sMax:1500, min:280,  max:900,  tip:'Außerhalb Zentrum ~450 €, Stadtzentrum ~750 €; Numbeo Izmir Mai 2026' },
+  { id:'lebensmittel', label:'Lebensmittel & Haushalt',           def:210,  sMax:500,  min:150,  max:350,  tip:'Lokale Märkte (Pazar) deutlich günstiger als Supermärkte' },
+  { id:'nebenkosten',  label:'Strom, Wasser, Gas',                def:150,  sMax:300,  min:80,   max:220,  tip:'Sommer höher durch Klimaanlage; ca. 0,066 €/kWh. Izmir hat oft keine Gasversorgung.' },
+  { id:'internet',     label:'Internet & Handy',                  def:35,   sMax:100,  min:25,   max:60,   tip:'Festnetz-Internet ~18 €, lokale Handy-SIM ~17 €/Mon. (Numbeo Mai 2026)' },
+  { id:'gesundheit',   label:'Gesundheit & Krankenversicherung',  def:65,   sMax:250,  min:50,   max:170,  tip:'Privatversicherung 50–80 €/Mon.; SGK freiwillig ~165 €/Mon. Mavi Kart: beide Optionen offen.' },
+  { id:'freizeit',     label:'Freizeit, Restaurant, Ausgehen',    def:220,  sMax:600,  min:100,  max:400,  tip:'Restaurants ca. 52 % günstiger als in Deutschland. Günstiges Menü ~5,70 €, Café-Espresso ~1,50 €.' },
+  { id:'opnv',         label:'Öffentlicher Nahverkehr',           def:10,   sMax:60,   min:3,    max:30,   tip:'ESHOT Bus ~1,20 €, Fähre Karşıyaka–Konak ~0,45 €, Metro ~0,90 € pro Fahrt. Izmirim Kart: Folgfahrten oft kostenlos.' },
+  { id:'pflege',       label:'Persönliche Pflege & Drogerie',     def:65,   sMax:200,  min:40,   max:110,  tip:'Friseur ~15–25 €/Mon. Achtung: Importierte Hygieneartikel & Markenprodukte TEURER als in DE!' },
+  { id:'kleidung',     label:'Kleidung',                          def:70,   sMax:250,  min:30,   max:150,  tip:'Basar & Fabrikverkäufe 30–50 % günstiger; Markenware ähnlich wie in Deutschland' },
+  { id:'bank',         label:'Bankgebühren & Überweisungen DE→TR',def:5,    sMax:30,   min:2,    max:15,   tip:'Mit Wise/Revolut ca. 3–5 €; deutsche Hausbank 10–15 € pro Überweisung' },
+  { id:'fluege',       label:'Flüge nach Deutschland (Ø/Monat)', def:20,   sMax:100,  min:10,   max:50,   tip:'1–2 mal pro Jahr realistisch. CGN↔ADB ab ~56 € Hin- & Rückflug; FRA etwas teurer.' },
+  { id:'rente',        label:'Freiwillige Rentenversicherung DE', def:0,    sMax:150,  min:0,    max:150,  tip:'Optional. Mindestbeitrag 2026: 112 €/Mon. bei der Deutschen Rentenversicherung. Sichert Anwartschaft in DE.' },
+  { id:'sonstiges',    label:'Sonstiges & Puffer',                def:60,   sMax:250,  min:30,   max:150,  tip:'Haushaltswaren, Reparaturen, Tierarzt, unvorhergesehene Ausgaben' },
+];
+
+/* ── Presets ─────────────────────────────────────────────────────────── */
+const PRESETS = {
+  standard: { miete:500, lebensmittel:210, nebenkosten:150, internet:35, gesundheit:65, freizeit:220, opnv:10, pflege:65, kleidung:70, bank:5, fluege:20, rente:0, sonstiges:60 },
+  mittel:   { miete:500, lebensmittel:200, nebenkosten:140, internet:35, gesundheit:65, freizeit:200, opnv:10, pflege:60, kleidung:60, bank:5, fluege:20, rente:0,   sonstiges:55 },
+  gehoben:  { miete:750, lebensmittel:270, nebenkosten:170, internet:50, gesundheit:120,freizeit:320, opnv:15, pflege:90, kleidung:100,bank:8, fluege:35, rente:112, sonstiges:100 },
+};
+
+/* ── State ───────────────────────────────────────────────────────────── */
+let rate = 39.0;
+
+/* ── Formatters ──────────────────────────────────────────────────────── */
+const fmtE = v => v.toLocaleString('de-DE', {minimumFractionDigits:0, maximumFractionDigits:0}) + ' €';
+const fmtT = v => '≈ ₺ ' + Math.round(v).toLocaleString('de-DE');
+
+/* ── Build cost grid from COSTS array ────────────────────────────────── */
+function buildGrid() {
+  document.getElementById('costsGrid').innerHTML = COSTS.map(c => `
+    <div class="cost-card" id="card-${c.id}">
+      <div class="cost-head">
+        <span class="cost-label">${c.label}</span>
+        <button class="tip-btn" data-tip="${c.tip}">?</button>
+      </div>
+      <div class="input-row">
+        <input type="range" id="sl-${c.id}" min="0" max="${c.sMax}" value="${c.def}"
+          oninput="onSlider('${c.id}',this.value)">
+        <input type="number" id="n-${c.id}" class="num-inp" value="${c.def}" min="0"
+          oninput="onNum('${c.id}',this.value)">
+        <span class="eur-sym">€</span>
+      </div>
+      <div class="try-line" id="t-${c.id}">${fmtT(c.def * rate)}</div>
+      <div class="warn-hint" id="w-${c.id}">Üblicher Bereich: ${c.min}–${c.max} €</div>
+    </div>
+  `).join('');
+}
+
+/* ── Input sync ──────────────────────────────────────────────────────── */
+function onSlider(id, raw) {
+  const v = +raw || 0;
+  document.getElementById('n-' + id).value = v;
+  updateField(id, v);
+}
+
+function onNum(id, raw) {
+  const v = +raw || 0;
+  const c = COSTS.find(x => x.id === id);
+  document.getElementById('sl-' + id).value = Math.min(v, c.sMax);
+  updateField(id, v);
+}
+
+function updateField(id, v) {
+  const c = COSTS.find(x => x.id === id);
+  document.getElementById('t-' + id).textContent = fmtT(v * rate);
+  const outOfRange = v > 0 && (v < c.min || v > c.max);
+  document.getElementById('card-' + id).classList.toggle('warn-card', outOfRange);
+  recalc();
+}
+
+/* ── Read all values ─────────────────────────────────────────────────── */
+function vals() {
+  return COSTS.reduce((a, c) => { a[c.id] = +document.getElementById('n-' + c.id).value || 0; return a; }, {});
+}
+function total(v) { return Object.values(v).reduce((a,b) => a+b, 0); }
+
+/* ── Main recalculation ──────────────────────────────────────────────── */
+function recalc() {
+  const v  = vals();
+  const mo = total(v);
+  const yr = mo * 12;
+  const rs = mo * 3;
+
+  document.getElementById('rMonEur').textContent = fmtE(mo);
+  document.getElementById('rMonTry').textContent = fmtT(mo * rate);
+  document.getElementById('rYrEur').textContent  = fmtE(yr);
+  document.getElementById('rYrTry').textContent  = fmtT(yr * rate);
+  document.getElementById('rResEur').textContent = fmtE(rs);
+  document.getElementById('rResTry').textContent = fmtT(rs * rate);
+
+  // Auto-fill deposit = 2× Miete unless user edited it
+  const dep = document.getElementById('deposit');
+  if (!dep._edited) {
+    dep.value = Math.round(v.miete * 2);
+    document.getElementById('depositNote').textContent =
+      '2× Miete = ' + fmtE(v.miete * 2) + ' (üblich 2–3 Monatsmieten)';
+  }
+
+  analyzeBuffer(mo);
+}
+
+/* ── Apply preset ────────────────────────────────────────────────────── */
+function applyPreset(name) {
+  const p = PRESETS[name];
+  COSTS.forEach(c => {
+    const v = p[c.id] ?? c.def;
+    document.getElementById('n-'  + c.id).value = v;
+    document.getElementById('sl-' + c.id).value = Math.min(v, c.sMax);
+    document.getElementById('t-'  + c.id).textContent = fmtT(v * rate);
+    const oor = v > 0 && (v < c.min || v > c.max);
+    document.getElementById('card-' + c.id).classList.toggle('warn-card', oor);
+  });
+  // Button states
+  document.getElementById('btnMittel').className  = 'scen-btn' + (name === 'mittel'  ? ' act-teal' : '');
+  document.getElementById('btnGehoben').className = 'scen-btn gehoben-btn' + (name === 'gehoben' ? ' act-gold' : '');
+  recalc();
+}
+
+/* ── Scenario comparison cards ───────────────────────────────────────── */
+function buildScenCards() {
+  ['mittel','gehoben'].forEach(name => {
+    const p = PRESETS[name];
+    const t = Object.values(p).reduce((a,b) => a+b, 0);
+    const elId = name === 'mittel' ? 'scenMittel' : 'scenGehoben';
+    document.getElementById(elId).innerHTML =
+      COSTS.map(c => `
+        <div class="scen-row">
+          <span>${c.label}</span>
+          <span class="v">${fmtE(p[c.id] ?? 0)}</span>
+        </div>
+      `).join('') +
+      `<div class="scen-sum"><span>Gesamt</span><span>${fmtE(t)}</span></div>`;
+  });
+}
+
+/* ── Financial buffer analysis ───────────────────────────────────────── */
+function analyzeBuffer(monthly) {
+  const income   = +document.getElementById('income').value    || 0;
+  const savings  = +document.getElementById('savings').value   || 0;
+  const deposit  = +document.getElementById('deposit').value   || 0;
+  const furni    = +document.getElementById('furniture').value || 0;
+
+  const onetime  = deposit + furni;
+  const startCap = savings - onetime;
+  const balance  = income - monthly;
+
+  // stat cells
+  const balEl = document.getElementById('sBalance');
+  balEl.textContent = income || savings ? (balance >= 0 ? '+' : '') + fmtE(balance) + '/Mon.' : '—';
+  balEl.className = 's-val ' + (income || savings ? (balance >= 0 ? 'pos' : 'neg') : '');
+
+  document.getElementById('sMinInc').textContent = monthly > 0 ? fmtE(monthly) + ' Netto/Mon.' : '—';
+  document.getElementById('sMinInc').className = 's-val';
+
+  const startEl = document.getElementById('sStart');
+  startEl.textContent = income || savings ? fmtE(startCap) : '—';
+  startEl.className = 's-val ' + (income || savings ? (startCap >= 0 ? 'pos' : 'neg') : '');
+
+  // runway
+  const runEl = document.getElementById('sRunway');
+  const runway = (balance < 0 && startCap > 0) ? Math.floor(startCap / Math.abs(balance)) : null;
+  if (!income && !savings) {
+    runEl.textContent = '—'; runEl.className = 's-val';
+  } else if (balance >= 0) {
+    runEl.textContent = 'Unbegrenzt'; runEl.className = 's-val pos';
+  } else if (runway !== null && runway > 0) {
+    runEl.textContent = runway + ' Monate';
+    runEl.className = 's-val ' + (runway >= 24 ? 'pos' : runway >= 12 ? 'warn' : 'neg');
+  } else {
+    runEl.textContent = 'Keine Reserve'; runEl.className = 's-val neg';
+  }
+
+  // Traffic light
+  const tEl    = document.getElementById('traffic');
+  const tTitle = document.getElementById('tTitle');
+  const tDesc  = document.getElementById('tDesc');
+
+  if (!income && !savings) {
+    tEl.className = 'traffic';
+    tTitle.textContent = 'Einkommensdaten eingeben';
+    tDesc.textContent  = 'Trage dein monatliches Nettoeinkommen und deine Ersparnisse ein, um die Machbarkeit zu berechnen.';
+    return;
+  }
+
+  if (balance >= 0) {
+    const surplus = fmtE(balance);
+    const pct = monthly > 0 ? Math.round(balance / monthly * 100) : 0;
+    setLight('g',
+      'Umzug ist finanziell tragbar — Überschuss: +' + surplus + '/Mon.',
+      'Dein Einkommen übersteigt die Lebenshaltungskosten um ' + pct + ' %. ' +
+      'Mit ' + fmtE(startCap) + ' Startkapital nach Umzugskosten bist du gut abgesichert.');
+  } else if (balance >= -200) {
+    setLight('y',
+      'Grenzwertig — Defizit: ' + fmtE(balance) + '/Mon.',
+      'Es fehlen ' + fmtE(Math.abs(balance)) + '/Mon. zum Kostendecken. Mit kleinen Einsparungen oder etwas Nebeneinkommen wäre der Umzug tragbar.' +
+      (runway ? ' Ersparnisse reichen noch ca. ' + runway + ' Monate.' : ''));
+  } else if (runway !== null && runway >= 24) {
+    setLight('y',
+      'Machbar mit gutem Polster — ' + runway + ' Monate Reserve',
+      'Du hast ein Defizit von ' + fmtE(Math.abs(balance)) + '/Mon., aber deine Ersparnisse reichen ' + runway + ' Monate. Nutze die Zeit, um Einkommen aufzubauen (Remote-Arbeit, Freelance).');
+  } else if (runway !== null && runway >= 12) {
+    setLight('o',
+      'Risikoreich — Ersparnisse reichen nur ' + runway + ' Monate',
+      'Das Defizit von ' + fmtE(Math.abs(balance)) + '/Mon. zehrt dein Startkapital in ' + runway + ' Monaten auf. Empfehlung: Erst auswandern, wenn Einkommen ≥ ' + fmtE(monthly) + '/Mon. gesichert ist.');
+  } else {
+    setLight('r',
+      'Derzeit nicht empfohlen — Defizit: ' + fmtE(balance) + '/Mon.',
+      'Es fehlen ' + fmtE(Math.abs(balance)) + '/Mon. — Mindestbedarf: ' + fmtE(monthly) + ' Netto/Mon. ' +
+      (runway && runway > 0 ? 'Ersparnisse decken nur ' + runway + ' Monate.' : 'Ohne ausreichende Ersparnisse ist der Umzug kurzfristig nicht tragbar.'));
+  }
+}
+
+function setLight(cls, title, desc) {
+  document.getElementById('traffic').className = 'traffic ' + cls;
+  document.getElementById('tTitle').textContent = title;
+  document.getElementById('tDesc').textContent  = desc;
+}
+
+/* ── Update all TRY badges ───────────────────────────────────────────── */
+function updateAllTry() {
+  COSTS.forEach(c => {
+    const v = +document.getElementById('n-' + c.id).value || 0;
+    document.getElementById('t-' + c.id).textContent = fmtT(v * rate);
+  });
+}
+
+/* ── Fetch live exchange rate from ECB via Frankfurter API ───────────── */
+async function fetchRate() {
+  const pill    = document.getElementById('ratePill');
+  const display = document.getElementById('rateDisplay');
+  const meta    = document.getElementById('rateMeta');
+  try {
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), 7000);
+    const res  = await fetch('https://api.frankfurter.app/latest?from=EUR&to=TRY', { signal: ctrl.signal });
+    clearTimeout(tid);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const r = data.rates?.TRY;
+    if (!r || r <= 0) throw new Error('Kein TRY-Kurs in Antwort');
+    rate = r;
+    const d = new Date(data.date).toLocaleDateString('de-DE');
+    display.textContent = '1 € = ₺ ' + r.toFixed(2);
+    meta.textContent    = 'Stand: ' + d + ' — Quelle: Europ. Zentralbank (EZB) via Frankfurter.app';
+    pill.className = 'rate-pill live';
+    pill.textContent = 'Live-Kurs';
+    document.getElementById('rateInput').value = r.toFixed(2);
+  } catch (e) {
+    rate = 39.0;
+    display.textContent = '1 € = ₺ 39,00 (Fallback)';
+    meta.textContent    = 'Kurs nicht abrufbar — bitte Internetverbindung prüfen oder manuell eingeben';
+    pill.className = 'rate-pill error';
+    pill.textContent = 'Offline / Fehler';
+    document.getElementById('rateInput').value = '39.00';
+  }
+  updateAllTry();
+  recalc();
+}
+
+/* ── Manual rate override ────────────────────────────────────────────── */
+document.getElementById('rateInput').addEventListener('input', function() {
+  const v = +this.value;
+  if (v > 0) {
+    rate = v;
+    document.getElementById('rateDisplay').textContent = '1 € = ₺ ' + v.toFixed(2) + ' (manuell)';
+    updateAllTry();
+    recalc();
+  }
+});
+
+/* ── Buffer form listeners ───────────────────────────────────────────── */
+['income','savings','furniture'].forEach(id =>
+  document.getElementById(id).addEventListener('input', () => recalc())
+);
+document.getElementById('deposit').addEventListener('input', function() {
+  this._edited = true;
+  recalc();
+});
+
+/* ── Init ────────────────────────────────────────────────────────────── */
+buildGrid();
+buildScenCards();
+fetchRate();
+</script>
+</body>
+</html>
