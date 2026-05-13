@@ -865,33 +865,58 @@ function updateAllTry() {
   });
 }
 
-/* ── Fetch live exchange rate from ECB via Frankfurter API ───────────── */
+/* ── Fetch live exchange rate — tries two APIs, then fallback ────────── */
+async function tryFetch(url, timeout) {
+  const ctrl = new AbortController();
+  const tid  = setTimeout(() => ctrl.abort(), timeout);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(tid);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return await res.json();
+  } catch(e) { clearTimeout(tid); throw e; }
+}
+
 async function fetchRate() {
   const pill    = document.getElementById('ratePill');
   const display = document.getElementById('rateDisplay');
   const meta    = document.getElementById('rateMeta');
+
+  let r = null, dateStr = '', source = '';
+
+  // Primary: open.er-api.com (CORS immer aktiv, kein vary:Origin Cache-Problem)
   try {
-    const ctrl = new AbortController();
-    const tid  = setTimeout(() => ctrl.abort(), 7000);
-    const res  = await fetch('https://api.frankfurter.dev/v1/latest?from=EUR&to=TRY', { signal: ctrl.signal });
-    clearTimeout(tid);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    const r = data.rates?.TRY;
-    if (!r || r <= 0) throw new Error('Kein TRY-Kurs in Antwort');
+    const data = await tryFetch('https://open.er-api.com/v6/latest/EUR', 7000);
+    r = data.rates?.TRY;
+    if (!r || r <= 0) throw new Error('kein TRY');
+    dateStr = new Date(data.time_last_update_utc).toLocaleDateString('de-DE');
+    source  = 'ExchangeRate-API';
+  } catch(_) {}
+
+  // Fallback: frankfurter.dev (EZB-Daten)
+  if (!r) {
+    try {
+      const data = await tryFetch('https://api.frankfurter.dev/v1/latest?from=EUR&to=TRY', 7000);
+      r = data.rates?.TRY;
+      if (!r || r <= 0) throw new Error('kein TRY');
+      dateStr = new Date(data.date).toLocaleDateString('de-DE');
+      source  = 'EZB via Frankfurter.dev';
+    } catch(_) {}
+  }
+
+  if (r) {
     rate = r;
-    const d = new Date(data.date).toLocaleDateString('de-DE');
-    display.textContent = '1 € = ₺ ' + r.toFixed(2);
-    meta.textContent    = 'Stand: ' + d + ' — Quelle: Europ. Zentralbank (EZB) via Frankfurter.app';
-    pill.className = 'rate-pill live';
+    display.textContent = '1 ' + String.fromCharCode(8364) + ' = ' + String.fromCharCode(8378) + ' ' + r.toFixed(2);
+    meta.textContent    = 'Stand: ' + dateStr + ' — Quelle: ' + source;
+    pill.className  = 'rate-pill live';
     pill.textContent = 'Live-Kurs';
     document.getElementById('rateInput').value = r.toFixed(2);
-  } catch (e) {
+  } else {
     rate = 53.0;
-    display.textContent = '1 € = ₺ 53,00 (Fallback)';
-    meta.textContent    = 'Kurs nicht abrufbar — bitte Internetverbindung prüfen oder manuell eingeben';
-    pill.className = 'rate-pill error';
-    pill.textContent = 'Offline / Fehler';
+    display.textContent = '1 ' + String.fromCharCode(8364) + ' = ' + String.fromCharCode(8378) + ' 53,00 (Fallback)';
+    meta.textContent    = 'Kurs nicht abrufbar — bitte manuell eingeben';
+    pill.className  = 'rate-pill error';
+    pill.textContent = 'Offline';
     document.getElementById('rateInput').value = '53.00';
   }
   updateAllTry();
